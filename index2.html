@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>目录扫描</title>
+<style>
+:root{
+  --bg:#0e1116; --panel:#161b23; --fg:#e8ecf2; --muted:#8b96a8;
+  --accent:#58a6ff; --border:#232b38; --hover:#1c2431; --dir:#ffd479;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh; background:var(--bg); color:var(--fg); padding:20px;
+  font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;
+}
+.wrap{max-width:960px;margin:0 auto}
+h1{font-size:16px;margin:0 0 14px;font-weight:600;letter-spacing:.5px}
+h1 span{color:var(--muted);font-weight:400;font-size:12px;margin-left:6px}
+.bar{
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;margin-bottom:10px;
+}
+.crumbs{flex:1;min-width:180px;overflow:auto;white-space:nowrap}
+.crumbs a{color:var(--accent);text-decoration:none}
+.crumbs a:hover{text-decoration:underline}
+.crumbs .sep{color:var(--muted);margin:0 6px}
+button{
+  font:inherit;color:var(--fg);background:var(--hover);cursor:pointer;
+  border:1px solid var(--border);border-radius:8px;padding:6px 12px;
+}
+button:hover{border-color:var(--accent);color:var(--accent)}
+input[type=search]{
+  font:inherit;color:var(--fg);background:var(--bg);outline:none;
+  border:1px solid var(--border);border-radius:8px;padding:6px 10px;width:200px;
+}
+input[type=search]:focus{border-color:var(--accent)}
+.status{font-size:12px;color:var(--muted);margin:0 4px 10px;word-break:break-all}
+.status.ok{color:#3fb950}
+.status.err{color:#ff7b72}
+ul.list{
+  list-style:none;margin:0;padding:0;overflow:hidden;
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;
+}
+ul.list li{border-bottom:1px solid var(--border)}
+ul.list li:last-child{border-bottom:0}
+ul.list li>a{
+  display:flex;align-items:center;gap:10px;padding:9px 14px;
+  color:var(--fg);text-decoration:none;
+}
+ul.list li>a:hover{background:var(--hover)}
+.icon{width:18px;flex:none;text-align:center}
+.name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+li.dir .name{color:var(--dir)}
+.tag{font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:0 6px}
+li.empty{padding:28px;text-align:center;color:var(--muted)}
+.tips{margin-top:14px;font-size:12px;color:var(--muted);line-height:1.9}
+.tips code{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📁 目录扫描 <span>列出当前目录下的文件与子目录</span></h1>
+
+  <div class="bar">
+    <button id="upBtn" title="返回上一级">↑ 上级</button>
+    <div class="crumbs" id="crumbs"></div>
+    <input type="search" id="filter" placeholder="过滤文件名…">
+    <button id="refreshBtn">刷新</button>
+  </div>
+
+  <div class="status" id="status">准备就绪</div>
+  <ul class="list" id="list"></ul>
+
+  <div class="tips">
+    提示：本页通过 <code>fetch</code> 请求目录地址并解析服务器的目录索引页，
+    需要服务端开启目录列表，例如 <code>python -m http.server</code>、<code>npx serve</code>、
+    Nginx <code>autoindex on;</code>、Apache <code>Options +Indexes</code>。
+    直接用 <code>file://</code> 打开本页无法读取目录（浏览器安全限制）。
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var listEl    = document.getElementById('list');
+  var statusEl  = document.getElementById('status');
+  var crumbsEl  = document.getElementById('crumbs');
+  var filterEl  = document.getElementById('filter');
+  var upBtn     = document.getElementById('upBtn');
+  var refreshBtn= document.getElementById('refreshBtn');
+
+  var currentDir = new URL('.', location.href); // 当前目录 URL
+  var items = [];                               // 当前目录条目
+
+  /* ---------------- 工具 ---------------- */
+
+  function setStatus(text, cls) {
+    statusEl.textContent = text;
+    statusEl.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  function decode(s) {
+    try { return decodeURIComponent(s); } catch (e) { return s; }
+  }
+
+  function fileIcon(name) {
+    var i = name.lastIndexOf('.');
+    var ext = i > 0 ? name.slice(i + 1).toLowerCase() : '';
+    var map = {
+      js:'🟨', mjs:'🟨', cjs:'🟨', jsx:'🟨', ts:'🟦', tsx:'🟦',
+      html:'🌐', htm:'🌐', css:'🎨', scss:'🎨', less:'🎨', sass:'🎨',
+      json:'🧾', yml:'🧾', yaml:'🧾', xml:'🧾', toml:'🧾',
+      md:'📝', markdown:'📝', txt:'📄', log:'📄', csv:'📊', xls:'📊', xlsx:'📊',
+      png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', svg:'🖼️', webp:'🖼️', ico:'🖼️', bmp:'🖼️',
+      pdf:'📕', doc:'📘', docx:'📘', ppt:'📙', pptx:'📙',
+      zip:'📦', gz:'📦', tar:'📦', rar:'📦', '7z':'📦',
+      mp4:'🎬', mov:'🎬', avi:'🎬', mkv:'🎬',
+      mp3:'🎵', wav:'🎵', flac:'🎵', ogg:'🎵',
+      py:'🐍', go:'🐹', rs:'🦀', java:'☕', c:'⚙️', h:'⚙️', cpp:'⚙️',
+      sh:'💻', bash:'💻', bat:'💻', ps1:'💻', exe:'💻', dll:'💻',
+      db:'🗄️', sql:'🗄️', sqlite:'🗄️', lock:'🔒', env:'🔑', gitignore:'🙈'
+    };
+    return map[ext] || '📄';
+  }
+
+  /* ---------------- 核心：扫描并解析目录 ---------------- */
+
+  async function scan(dir) {
+    listEl.innerHTML = '';
+    items = [];
+    setStatus('正在扫描 ' + decode(dir.pathname) + ' …');
+
+    try {
+      var res = await fetch(dir.href, { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+
+      var html = await res.text();
+      var doc  = new DOMParser().parseFromString(html, 'text/html');
+      var parsed = parseEntries(doc, dir);
+
+      if (parsed.length === 0) {
+        throw new Error('未解析到任何文件链接 —— 该地址可能没有开启目录列表，或返回的是普通网页。');
+      }
+
+      items = parsed;
+      currentDir = dir;
+      render();
+      renderCrumbs(dir);
+      setStatus('共 ' + parsed.length + ' 项 · ' + decode(dir.pathname), 'ok');
+
+    } catch (err) {
+      var msg = err.message || String(err);
+      if (location.protocol === 'file:') {
+        msg += '（file:// 协议下浏览器禁止读取本地目录，请用本地 HTTP 服务器打开本页）';
+      }
+      renderCrumbs(dir);
+      setStatus('扫描失败：' + msg, 'err');
+
+      var li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = '😕 ' + msg;
+      listEl.appendChild(li);
+    }
+  }
+
+  // 从目录索引页的 <a> 标签里提取条目
+  function parseEntries(doc, base) {
+    var map = new Map();
+
+    doc.querySelectorAll('a[href]').forEach(function (a) {
+      var raw = a.getAttribute('href');
+      if (!raw || raw[0] === '?' || raw[0] === '#') return;
+
+      var url;
+      try { url = new URL(raw, base.href); } catch (e) { return; }
+
+      // 同源校验
+      if (url.protocol !== base.protocol || url.host !== base.host) return;
+
+      // 只保留「当前目录的直接子项」—— 顺带过滤 ../ 和排序链接
+      if (url.pathname.indexOf(base.pathname) !== 0) return;
+      var rest = url.pathname.slice(base.pathname.length);
+      if (!rest) return;
+      if (rest.indexOf('/') !== -1 && !rest.endsWith('/')) return;
+
+      var isDir = url.pathname.endsWith('/');
+      var name  = decode(rest.replace(/\/$/, ''));
+      if (!name || name === '.' || name === '..') return;
+      if (map.has(url.pathname)) return;
+
+      map.set(url.pathname, { name: name, url: url, isDir: isDir });
+    });
+
+    return Array.from(map.values()).sort(function (a, b) {
+      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;      // 目录优先
+      return a.name.localeCompare(b.name, 'zh-CN', { numeric: true });
+    });
+  }
+
+  /* ---------------- 渲染 ---------------- */
+
+  function render() {
+    var q = filterEl.value.trim().toLowerCase();
+    var shown = q
+      ? items.filter(function (it) { return it.name.toLowerCase().indexOf(q) !== -1; })
+      : items;
+
+    listEl.innerHTML = '';
+
+    if (shown.length === 0) {
+      var li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = items.length ? '没有匹配「' + filterEl.value + '」的项' : '空目录';
+      listEl.appendChild(li);
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+
+    shown.forEach(function (it) {
+      var li = document.createElement('li');
+      if (it.isDir) li.className = 'dir';
+
+      var a = document.createElement('a');
+      a.href = it.url.href;
+
+      var icon = document.createElement('span');
+      icon.className = 'icon';
+      icon.textContent = it.isDir ? '📁' : fileIcon(it.name);
+
+      var name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = it.name;
+
+      a.appendChild(icon);
+      a.appendChild(name);
+
+      if (it.isDir) {
+        var tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.textContent = '目录';
+        a.appendChild(tag);
+
+        a.addEventListener('click', function (e) {
+          e.preventDefault();
+          scan(it.url);
+        });
+      } else {
+        a.target = '_blank';
+        a.rel = 'noopener';
+      }
+
+      li.appendChild(a);
+      frag.appendChild(li);
+    });
+
+    listEl.appendChild(frag);
+  }
+
+  function renderCrumbs(dir) {
+    crumbsEl.innerHTML = '';
+
+    addCrumb('根目录', new URL('/', dir.href));
+
+    var acc = '/';
+    dir.pathname.split('/').filter(Boolean).forEach(function (p) {
+      acc += p + '/';
+      addCrumb(decode(p), new URL(acc, dir.href));
+    });
+
+    function addCrumb(text, url) {
+      if (crumbsEl.childNodes.length) {
+        var sep = document.createElement('span');
+        sep.className = 'sep';
+        sep.textContent = '/';
+        crumbsEl.appendChild(sep);
+      }
+      var a = document.createElement('a');
+      a.href = url.href;
+      a.textContent = text;
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        scan(url);
+      });
+      crumbsEl.appendChild(a);
+    }
+  }
+
+  /* ---------------- 事件 ---------------- */
+
+  upBtn.addEventListener('click', function () {
+    var parent = new URL('../', currentDir.href);
+    if (parent.href === currentDir.href) return; // 已在根目录
+    scan(parent);
+  });
+
+  refreshBtn.addEventListener('click', function () { scan(currentDir); });
+
+  filterEl.addEventListener('input', render);
+
+  // 启动
+  scan(currentDir);
+})();
+</script>
+</body>
+</html>
