@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多人训练营 - 下载</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+
+        body {
+            min-height:100vh;
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background:#eef0f4;
+            padding:20px;
+        }
+
+        .scene { position:relative; max-width:380px; width:100%; }
+
+        .card {
+            background:#ffffff;
+            border-radius:6px 24px 24px 24px;
+            padding:44px 36px 36px;
+            box-shadow:
+                -8px 12px 0 -4px #d4d8e0,
+                -8px 12px 24px rgba(0,0,0,0.07);
+            position:relative;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card:hover {
+            transform: translate(2px, -2px);
+            box-shadow:
+                -10px 14px 0 -4px #d4d8e0,
+                -10px 14px 28px rgba(0,0,0,0.1);
+        }
+
+        .card::before {
+            content:'';
+            position:absolute;
+            top:0; left:0;
+            width:100px; height:5px;
+            background:#ff6b35;
+            border-radius:0 0 5px 0;
+        }
+
+        .logo-wrap {
+            width:76px; height:76px;
+            margin:0 auto 18px;
+            position:relative;
+        }
+        .logo-wrap::after {
+            content:'';
+            position:absolute;
+            bottom:-8px; left:16px;
+            width:44px; height:6px;
+            background:rgba(0,0,0,0.06);
+            border-radius:50%;
+            filter:blur(3px);
+        }
+        .app-icon {
+            width:76px; height:76px;
+            border-radius:16px 16px 16px 6px;
+            object-fit:cover;
+            display:block;
+            position:relative;
+            z-index:1;
+            box-shadow:0 4px 12px rgba(0,0,0,0.1);
+        }
+        .logo-fallback {
+            width:76px; height:76px;
+            background:linear-gradient(135deg, #ff6b35, #f59e0b);
+            border-radius:16px 16px 16px 6px;
+            display:none;
+            align-items:center;
+            justify-content:center;
+            font-size:36px;
+            color:white;
+            position:absolute;
+            top:0; left:0;
+            z-index:1;
+        }
+
+        h1 { font-size:21px; font-weight:700; color:#1a1a2e; margin-bottom:4px; letter-spacing:-0.3px; }
+        .subtitle { color:#8e8e93; font-size:13px; margin-bottom:8px; }
+        .file-info { font-size:12px; color:#aeaeb2; margin-bottom:24px; }
+
+        .btn {
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:10px;
+            background:#1a1a2e;
+            color:#ffffff;
+            font-weight:600;
+            font-size:16px;
+            padding:16px 32px;
+            border-radius:12px;
+            border:none;
+            cursor:pointer;
+            width:100%;
+            transition: all 0.2s ease;
+            position:relative;
+            overflow:hidden;
+            text-decoration:none;
+        }
+        .btn::after {
+            content:'';
+            position:absolute;
+            top:0; left:-100%;
+            width:100%; height:100%;
+            background:linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+            transition: left 0.5s ease;
+        }
+        .btn:hover::after { left:100%; }
+        .btn:hover { background:#2d2d44; transform: scale(1.015); }
+        .btn:active { transform: scale(0.98); }
+        .btn svg { width:18px; height:18px; fill:currentColor; }
+
+        .meta { margin-top:22px; display:flex; justify-content:center; gap:14px; }
+        .meta span { font-size:11px; color:#aeaeb2; display:flex; align-items:center; gap:5px; }
+        .meta-dot { width:4px; height:4px; background:#ff6b35; border-radius:50%; }
+
+        @media (max-width:480px){
+            .card { padding:36px 24px 32px; }
+            h1 { font-size:19px; }
+            .btn { font-size:15px; padding:14px 24px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="scene">
+        <div class="card">
+            <div class="logo-wrap">
+                <img class="app-icon" id="appIcon" src="" alt="App Icon"
+                     onerror="this.style.display='none'; document.getElementById('logoFallback').style.display='flex';">
+                <div class="logo-fallback" id="logoFallback">🏕️</div>
+            </div>
+            <h1>多人训练营</h1>
+            <p class="subtitle">下载最新版本安装包</p>
+            <p class="file-info" id="fileInfo">战区修改(本地)_9.9.9.apk</p>
+            <a class="btn" id="downloadBtn" href="#" download>
+                <svg viewBox="0 0 24 24">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                </svg>
+                下载 APK
+            </a>
+            <div class="meta">
+                <span><span class="meta-dot"></span> Android</span>
+                <span><span class="meta-dot"></span> 免费</span>
+                <span><span class="meta-dot"></span> 最新版</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== 配置区 =====
+        const APK_FILE_NAME = '战区修改(本地)_9.9.9.apk';
+        const APK_BASE      = 'https://haoqing575.github.io/psro.top/';
+        // 图标可选：填一个 PNG 地址；留空则显示默认 🏕️
+        const ICON_URL      = '';
+
+        // 文件名含中文和括号，必须编码，否则部分浏览器/服务器解析异常
+        const APK_URL = APK_BASE + encodeURIComponent(APK_FILE_NAME);
+
+        const appIcon      = document.getElementById('appIcon');
+        const logoFallback = document.getElementById('logoFallback');
+        const fileInfo     = document.getElementById('fileInfo');
+        const downloadBtn  = document.getElementById('downloadBtn');
+
+        // 图标
+        if (ICON_URL) {
+            appIcon.src = ICON_URL;
+        } else {
+            appIcon.style.display = 'none';
+            logoFallback.style.display = 'flex';
+        }
+
+        // 下载按钮：直接指向 APK 地址
+        downloadBtn.href = APK_URL;
+        downloadBtn.setAttribute('download', APK_FILE_NAME);
+        fileInfo.textContent = APK_FILE_NAME;
+
+        // 可选：尝试读取文件大小（同源部署时有效，跨域会被 CORS 限制，静默失败即可）
+        (async function tryGetSize() {
+            try {
+                const res = await fetch(APK_URL, { method: 'HEAD', cache: 'no-store' });
+                if (!res.ok) return;
+                const len = res.headers.get('content-length');
+                if (len) {
+                    const mb = (parseInt(len, 10) / 1024 / 1024).toFixed(1);
+                    fileInfo.textContent = APK_FILE_NAME + ' · ' + mb + ' MB';
+                }
+            } catch (e) {
+                // 跨域无法读取大小，忽略
+            }
+        })();
+    </script>
+</body>
+</html>
